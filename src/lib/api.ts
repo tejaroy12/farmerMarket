@@ -35,6 +35,11 @@ export async function loginFarmer(input: { phone: string; password: string }) {
   return parse<Farmer>(res)
 }
 
+export async function getFarmer(farmerId: string) {
+  const res = await fetch(`/api/farmers/${farmerId}`)
+  return parse<Farmer>(res)
+}
+
 export async function listProducts(query: Query) {
   const q = new URLSearchParams()
   if (query.query) q.set('query', query.query)

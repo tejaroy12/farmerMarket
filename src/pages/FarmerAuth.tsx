@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import type { Farmer } from '../lib/types'
-import { getFarmers, getSessionFarmerId, setFarmers, setSessionFarmerId } from '../lib/storage'
+import { clearSession, getFarmers, getSessionFarmerId, setFarmers, setSessionFarmerId } from '../lib/storage'
 import { normalizePhone } from '../lib/util'
-import { loginFarmer, registerFarmer } from '../lib/api'
+import { getFarmer, loginFarmer, registerFarmer } from '../lib/api'
 
 function validatePhone(phone: string) {
   const normalized = normalizePhone(phone)
@@ -25,7 +25,23 @@ export default function FarmerAuth() {
 
   useEffect(() => {
     const id = getSessionFarmerId()
-    if (id) nav('/farmer/dashboard', { replace: true })
+    if (!id) return
+
+    let cancelled = false
+    getFarmer(id)
+      .then((farmer) => {
+        if (cancelled) return
+        setFarmers([farmer])
+        nav('/farmer/dashboard', { replace: true })
+      })
+      .catch(() => {
+        if (cancelled) return
+        clearSession()
+      })
+
+    return () => {
+      cancelled = true
+    }
   }, [nav])
 
   async function onSubmit(e: React.FormEvent) {

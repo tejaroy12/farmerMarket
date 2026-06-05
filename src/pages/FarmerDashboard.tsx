@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import type { Product, Unit } from '../lib/types'
-import { clearSession, getFarmers, getSessionFarmerId } from '../lib/storage'
+import { clearSession, getFarmers, getSessionFarmerId, setFarmers } from '../lib/storage'
 import { Carousel } from '../components/Carousel'
-import { addProduct, deleteProduct, listMyProducts, updateProduct } from '../lib/api'
+import { addProduct, deleteProduct, getFarmer, listMyProducts, updateProduct } from '../lib/api'
 
 const UNITS: Unit[] = ['kg', 'quintal', 'ton', 'bags', 'pcs']
 const LANGUAGES = [
@@ -156,9 +156,26 @@ export default function FarmerDashboard() {
   }
 
   useEffect(() => {
-    refreshMine()
+    if (!farmerId) return
+
+    let cancelled = false
+    getFarmer(farmerId)
+      .then((farmer) => {
+        if (cancelled) return
+        setFarmers([farmer])
+        return refreshMine()
+      })
+      .catch(() => {
+        if (cancelled) return
+        clearSession()
+        nav('/farmer', { replace: true })
+      })
+
+    return () => {
+      cancelled = true
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [farmerId])
+  }, [farmerId, nav])
 
   useEffect(() => {
     return () => {
@@ -227,6 +244,14 @@ export default function FarmerDashboard() {
       })
       resetForm()
       await refreshMine()
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to post listing'
+      if (message.toLowerCase().includes('farmer not found')) {
+        clearSession()
+        nav('/farmer', { replace: true })
+        return
+      }
+      setError(message)
     } finally {
       setBusy(false)
     }
@@ -234,8 +259,12 @@ export default function FarmerDashboard() {
 
   async function removeProduct(id: string) {
     if (!farmerId) return
-    await deleteProduct(id, farmerId)
-    await refreshMine()
+    try {
+      await deleteProduct(id, farmerId)
+      await refreshMine()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete listing')
+    }
   }
 
   function startEdit(p: Product) {
@@ -249,17 +278,21 @@ export default function FarmerDashboard() {
 
   async function saveEdit() {
     if (!editingId || !farmerId) return
-    await updateProduct({
-      productId: editingId,
-      farmerId,
-      cropName: editCropName.trim(),
-      quantity: editQuantity.trim(),
-      unit: editUnit,
-      pricePerUnit: editPrice.trim() || undefined,
-      location: editLocation.trim() || undefined,
-    })
-    setEditingId(null)
-    await refreshMine()
+    try {
+      await updateProduct({
+        productId: editingId,
+        farmerId,
+        cropName: editCropName.trim(),
+        quantity: editQuantity.trim(),
+        unit: editUnit,
+        pricePerUnit: editPrice.trim() || undefined,
+        location: editLocation.trim() || undefined,
+      })
+      setEditingId(null)
+      await refreshMine()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update listing')
+    }
   }
 
   return (

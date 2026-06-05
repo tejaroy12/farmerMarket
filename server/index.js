@@ -143,6 +143,12 @@ app.post('/api/farmers/login', (req, res) => {
   res.json({ id: farmer.id, name: farmer.name, phone: farmer.phone })
 })
 
+app.get('/api/farmers/:id', (req, res) => {
+  const farmer = db.prepare('SELECT id, name, phone FROM farmers WHERE id = ?').get(req.params.id)
+  if (!farmer) return res.status(404).json({ error: 'Farmer not found.' })
+  res.json(farmer)
+})
+
 app.get('/api/farmers/:id/products', (req, res) => {
   const rows = db
     .prepare('SELECT * FROM products WHERE farmer_id = ? ORDER BY created_at DESC')
@@ -367,6 +373,23 @@ io.on('connection', (socket) => {
     activeViewers = Math.max(0, activeViewers - 1)
     io.emit('viewers', activeViewers)
   })
+})
+
+app.use((err, req, res, next) => {
+  if (err instanceof multer.MulterError) {
+    if (err.code === 'LIMIT_FILE_SIZE') {
+      return res.status(400).json({ error: 'Each image must be under 2MB.' })
+    }
+    if (err.code === 'LIMIT_FILE_COUNT') {
+      return res.status(400).json({ error: 'Please upload at most 5 photos.' })
+    }
+    return res.status(400).json({ error: err.message })
+  }
+  if (err) {
+    console.error(err)
+    return res.status(500).json({ error: 'Upload failed. Please try again.' })
+  }
+  next()
 })
 
 const distDir = path.join(rootDir, 'dist')
