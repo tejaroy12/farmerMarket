@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { Carousel } from '../components/Carousel'
 import { getProductDetails, registerCall } from '../lib/api'
+import { openPhoneDialer } from '../lib/util'
 import type { Product } from '../lib/types'
 
 function ProductMiniCard({ p }: { p: Product }) {
@@ -50,8 +51,12 @@ export default function ProductDetails() {
 
   async function onBuy() {
     if (!product) return
-    const r = await registerCall(product.id)
-    window.location.href = r.tel
+    try {
+      const r = await registerCall(product.id)
+      openPhoneDialer(r.tel)
+    } catch {
+      alert('Could not start call right now.')
+    }
   }
 
   if (loading) {

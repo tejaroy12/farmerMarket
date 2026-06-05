@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import type { Product, Unit } from '../lib/types'
-import { clearSession, getFarmers, getSessionFarmerId, setFarmers } from '../lib/storage'
+import type { Farmer, Product, Unit } from '../lib/types'
+import { clearSession, getSessionFarmerId, setFarmers } from '../lib/storage'
 import { Carousel } from '../components/Carousel'
 import { addProduct, deleteProduct, getFarmer, listMyProducts, updateProduct } from '../lib/api'
+import { compressImageForUpload, isImageFile } from '../lib/util'
 
 const UNITS: Unit[] = ['kg', 'quintal', 'ton', 'bags', 'pcs']
 const LANGUAGES = [
@@ -27,7 +28,7 @@ const LABELS = {
     unit: 'Unit',
     price: 'Price / unit (optional)',
     location: 'Location (optional)',
-    photos: 'Photos (1 mandatory + up to 4 optional, each under 2MB)',
+    photos: 'Photos (1 mandatory + up to 4 optional). Phone camera photos are auto-compressed.',
     preview: 'Preview',
     addListing: 'Add listing',
   },
@@ -38,7 +39,7 @@ const LABELS = {
     unit: 'యూనిట్',
     price: 'ధర / యూనిట్ (ఐచ్ఛికం)',
     location: 'ప్రదేశం (ఐచ్ఛికం)',
-    photos: 'ఫోటోలు (1 తప్పనిసరి + 4 ఐచ్ఛికం, ఒక్కోటి 2MB లోపు)',
+    photos: 'ఫోటోలు (1 తప్పనిసరి + 4 ఐచ్ఛికం). ఫోన్ కెమెరా ఫోటోలు ఆటో కంప్రెస్ అవుతాయి.',
     preview: 'ప్రివ్యూ',
     addListing: 'లిస్టింగ్ చేర్చండి',
   },
@@ -49,7 +50,7 @@ const LABELS = {
     unit: 'इकाई',
     price: 'कीमत / इकाई (वैकल्पिक)',
     location: 'स्थान (वैकल्पिक)',
-    photos: 'फोटो (1 अनिवार्य + 4 वैकल्पिक, प्रत्येक 2MB से कम)',
+    photos: 'फोटो (1 अनिवार्य + 4 वैकल्पिक). फोन कैमरा फोटो अपने आप कंप्रेस होते हैं.',
     preview: 'पूर्वावलोकन',
     addListing: 'लिस्टिंग जोड़ें',
   },
@@ -60,10 +61,8 @@ export default function FarmerDashboard() {
   const filesRef = useRef<HTMLInputElement | null>(null)
 
   const farmerId = getSessionFarmerId()
-  const farmer = useMemo(() => {
-    if (!farmerId) return null
-    return getFarmers().find((f) => f.id === farmerId) ?? null
-  }, [farmerId])
+  const [farmer, setFarmer] = useState<Farmer | null>(null)
+  const [sessionLoading, setSessionLoading] = useState(Boolean(farmerId))
 
   const [cropName, setCropName] = useState('')
   const [quantity, setQuantity] = useState<string>('')
@@ -88,17 +87,55 @@ export default function FarmerDashboard() {
   const [editLocation, setEditLocation] = useState('')
   const t = LABELS[language as keyof typeof LABELS] || LABELS.en
 
-  if (!farmerId || !farmer) {
-    return (
-      <div className="empty">
-        <h2>You are not logged in</h2>
-        <p className="muted">Please login as a farmer to add products.</p>
-        <Link className="btn btn-primary" to="/farmer">
-          Go to login
-        </Link>
-      </div>
-    )
+  async function refreshMine(activeFarmerId = farmerId) {
+    if (!activeFarmerId) return
+    setLoadingProducts(true)
+    try {
+      setMyProducts(await listMyProducts(activeFarmerId))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load products')
+    } finally {
+      setLoadingProducts(false)
+    }
   }
+
+  useEffect(() => {
+    if (!farmerId) {
+      setSessionLoading(false)
+      setFarmer(null)
+      return
+    }
+
+    let cancelled = false
+    setSessionLoading(true)
+    getFarmer(farmerId)
+      .then((loadedFarmer) => {
+        if (cancelled) return
+        setFarmer(loadedFarmer)
+        setFarmers([loadedFarmer])
+        return refreshMine(loadedFarmer.id)
+      })
+      .catch(() => {
+        if (cancelled) return
+        clearSession()
+        setFarmer(null)
+        nav('/farmer', { replace: true })
+      })
+      .finally(() => {
+        if (!cancelled) setSessionLoading(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [farmerId, nav])
+
+  useEffect(() => {
+    return () => {
+      for (const url of previewUrls) URL.revokeObjectURL(url)
+    }
+  }, [previewUrls])
 
   async function onPickPhotos(e: React.ChangeEvent<HTMLInputElement>) {
     const list = Array.from(e.target.files ?? [])
@@ -108,20 +145,28 @@ export default function FarmerDashboard() {
       return
     }
 
-    for (const f of list) {
-      if (!f.type.startsWith('image/')) {
-        setError('Please select only image files.')
-        return
-      }
-      if (f.size > 2 * 1024 * 1024) {
-        setError('Each image must be under 2MB.')
-        return
-      }
-    }
-
     setError(null)
-    setPhotos((prev) => [...prev, ...list])
-    setPreviewUrls((prev) => [...prev, ...list.map((f) => URL.createObjectURL(f))])
+    setBusy(true)
+    try {
+      const compressed: File[] = []
+      const previews: string[] = []
+      for (const file of list) {
+        if (!isImageFile(file)) {
+          setError('Please select only image files.')
+          return
+        }
+        const ready = await compressImageForUpload(file)
+        compressed.push(ready)
+        previews.push(URL.createObjectURL(ready))
+      }
+      setPhotos((prev) => [...prev, ...compressed])
+      setPreviewUrls((prev) => [...prev, ...previews])
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not process photo')
+    } finally {
+      setBusy(false)
+      if (filesRef.current) filesRef.current.value = ''
+    }
   }
 
   function resetForm() {
@@ -142,46 +187,6 @@ export default function FarmerDashboard() {
     setPreviewUrls([])
     if (filesRef.current) filesRef.current.value = ''
   }
-
-  async function refreshMine() {
-    if (!farmerId) return
-    setLoadingProducts(true)
-    try {
-      setMyProducts(await listMyProducts(farmerId))
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load products')
-    } finally {
-      setLoadingProducts(false)
-    }
-  }
-
-  useEffect(() => {
-    if (!farmerId) return
-
-    let cancelled = false
-    getFarmer(farmerId)
-      .then((farmer) => {
-        if (cancelled) return
-        setFarmers([farmer])
-        return refreshMine()
-      })
-      .catch(() => {
-        if (cancelled) return
-        clearSession()
-        nav('/farmer', { replace: true })
-      })
-
-    return () => {
-      cancelled = true
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [farmerId, nav])
-
-  useEffect(() => {
-    return () => {
-      for (const url of previewUrls) URL.revokeObjectURL(url)
-    }
-  }, [previewUrls])
 
   function onUseCurrentLocation() {
     if (!navigator.geolocation) {
@@ -295,6 +300,27 @@ export default function FarmerDashboard() {
     }
   }
 
+  if (!farmerId) {
+    return (
+      <div className="empty">
+        <h2>You are not logged in</h2>
+        <p className="muted">Please login as a farmer to add products.</p>
+        <Link className="btn btn-primary" to="/farmer">
+          Go to login
+        </Link>
+      </div>
+    )
+  }
+
+  if (sessionLoading || !farmer) {
+    return (
+      <div className="empty">
+        <div className="loader" />
+        <h2>Loading your farmer account...</h2>
+      </div>
+    )
+  }
+
   return (
     <div className="stack">
       <section className="dashboard-head">
@@ -321,7 +347,7 @@ export default function FarmerDashboard() {
             <button type="button" className="btn btn-primary" onClick={() => setShowAddForm((x) => !x)}>
               {showAddForm ? 'Hide Add Crop' : 'Add Crop'}
             </button>
-            <button type="button" className="btn btn-ghost" onClick={refreshMine}>
+            <button type="button" className="btn btn-ghost" onClick={() => refreshMine()}>
               Refresh
             </button>
           </div>
@@ -381,7 +407,7 @@ export default function FarmerDashboard() {
               ref={filesRef}
               className="input"
               type="file"
-              accept="image/*"
+              accept="image/*,.heic,.heif"
               multiple
               onChange={onPickPhotos}
             />

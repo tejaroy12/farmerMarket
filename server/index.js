@@ -67,7 +67,7 @@ const storage = multer.diskStorage({
 })
 const upload = multer({
   storage,
-  limits: { fileSize: 2 * 1024 * 1024, files: 5 },
+  limits: { fileSize: 5 * 1024 * 1024, files: 5 },
 })
 
 function uid(prefix) {
@@ -378,7 +378,7 @@ io.on('connection', (socket) => {
 app.use((err, req, res, next) => {
   if (err instanceof multer.MulterError) {
     if (err.code === 'LIMIT_FILE_SIZE') {
-      return res.status(400).json({ error: 'Each image must be under 2MB.' })
+      return res.status(400).json({ error: 'Each image must be under 5MB.' })
     }
     if (err.code === 'LIMIT_FILE_COUNT') {
       return res.status(400).json({ error: 'Please upload at most 5 photos.' })

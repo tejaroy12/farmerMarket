@@ -154,7 +154,9 @@ a {
   align-items: center;
   justify-content: center;
   gap: 8px;
+  min-height: 44px;
   padding: 10px 12px;
+  touch-action: manipulation;
   border-radius: 12px;
   border: 1px solid var(--border);
   background: color-mix(in oklab, var(--bg), transparent 2%);

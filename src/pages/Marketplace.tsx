@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import type { Product } from '../lib/types'
 import { Carousel } from '../components/Carousel'
 import { listProducts, registerCall } from '../lib/api'
+import { openPhoneDialer } from '../lib/util'
 import { io } from 'socket.io-client'
 
 function ProductCard({ p }: { p: Product }) {
@@ -12,7 +13,7 @@ function ProductCard({ p }: { p: Product }) {
   async function onBuy() {
     try {
       const r = await registerCall(p.id)
-      window.location.href = r.tel
+      openPhoneDialer(r.tel)
     } catch {
       alert('Could not start call right now.')
     }
@@ -113,7 +114,7 @@ export default function Marketplace() {
   }, [q, cropFilter, maxDistance, sort, lat, lng])
 
   useEffect(() => {
-    const socket = io()
+    const socket = io({ transports: ['polling', 'websocket'] })
     socket.on('viewers', (count: number) => setLiveViewers(count))
     socket.on('products:updated', () => refreshProducts())
     return () => {

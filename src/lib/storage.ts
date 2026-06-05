@@ -19,19 +19,36 @@ export function getFarmers(): Farmer[] {
 
 export function setFarmers(farmers: Farmer[]) {
   const farmer = farmers[0] ?? null
-  if (farmer) localStorage.setItem(KEY_FARMER, JSON.stringify(farmer))
-  else localStorage.removeItem(KEY_FARMER)
+  try {
+    if (farmer) localStorage.setItem(KEY_FARMER, JSON.stringify(farmer))
+    else localStorage.removeItem(KEY_FARMER)
+  } catch {
+    // Mobile private mode can block storage writes.
+  }
 }
 
 export function getSessionFarmerId(): string | null {
-  return localStorage.getItem(KEY_SESSION)
+  try {
+    return localStorage.getItem(KEY_SESSION)
+  } catch {
+    return null
+  }
 }
 
 export function setSessionFarmerId(farmerId: string) {
-  localStorage.setItem(KEY_SESSION, farmerId)
+  try {
+    localStorage.setItem(KEY_SESSION, farmerId)
+  } catch {
+    // Mobile private mode can block storage writes.
+  }
 }
 
 export function clearSession() {
-  localStorage.removeItem(KEY_SESSION)
+  try {
+    localStorage.removeItem(KEY_SESSION)
+    localStorage.removeItem(KEY_FARMER)
+  } catch {
+    // Ignore storage errors on mobile browsers.
+  }
 }
 
