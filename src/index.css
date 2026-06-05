@@ -205,6 +205,36 @@ a {
   box-shadow: 0 0 0 4px var(--accent-bg);
 }
 
+.password-field {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.password-field .input {
+  padding-right: 44px;
+}
+
+.password-toggle {
+  position: absolute;
+  right: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.password-toggle:hover {
+  background: var(--panel);
+  color: var(--text-h);
+}
+
 .field {
   display: grid;
   gap: 6px;

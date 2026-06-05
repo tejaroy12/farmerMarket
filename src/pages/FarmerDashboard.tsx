@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import type { Farmer, Product, Unit } from '../lib/types'
 import { clearSession, getSessionFarmerId, setFarmers } from '../lib/storage'
 import { Carousel } from '../components/Carousel'
-import { addProduct, deleteProduct, getFarmer, listMyProducts, updateProduct } from '../lib/api'
+import { addProduct, deleteProduct, getFarmer, listMyProducts, updateProduct, wakeServer } from '../lib/api'
 import { compressImageForUpload, isImageFile } from '../lib/util'
 
 const UNITS: Unit[] = ['kg', 'quintal', 'ton', 'bags', 'pcs']
@@ -75,6 +75,7 @@ export default function FarmerDashboard() {
   const [previewUrls, setPreviewUrls] = useState<string[]>([])
   const [myProducts, setMyProducts] = useState<Product[]>([])
   const [busy, setBusy] = useState(false)
+  const [uploadStatus, setUploadStatus] = useState<string | null>(null)
   const [loadingProducts, setLoadingProducts] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [language, setLanguage] = useState('en')
@@ -235,7 +236,10 @@ export default function FarmerDashboard() {
     }
 
     setBusy(true)
+    setUploadStatus('Connecting to server...')
     try {
+      await wakeServer()
+      setUploadStatus('Uploading your listing...')
       await addProduct({
         farmerId: farmer.id,
         cropName: cn,
@@ -248,6 +252,7 @@ export default function FarmerDashboard() {
         photos,
       })
       resetForm()
+      setUploadStatus(null)
       await refreshMine()
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to post listing'
@@ -259,6 +264,7 @@ export default function FarmerDashboard() {
       setError(message)
     } finally {
       setBusy(false)
+      setUploadStatus(null)
     }
   }
 
@@ -460,6 +466,8 @@ export default function FarmerDashboard() {
             ) : null}
           </div>
 
+          {uploadStatus ? <p className="muted small form-wide">{uploadStatus}</p> : null}
+
           {error ? (
             <div className="error form-wide" role="alert">
               {error}
@@ -468,7 +476,7 @@ export default function FarmerDashboard() {
 
           <div className="form-wide actions-row">
             <button className="btn btn-primary" type="submit" disabled={busy}>
-              {busy ? 'Posting...' : t.addListing}
+              {busy ? uploadStatus || 'Posting...' : t.addListing}
             </button>
             <Link className="btn btn-ghost" to="/">
               View marketplace

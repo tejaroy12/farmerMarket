@@ -27,14 +27,20 @@ function isNetworkError(err: unknown) {
   )
 }
 
-function networkErrorMessage() {
+function networkErrorMessage(isUpload = false, aborted = false) {
+  if (aborted && isUpload) {
+    return 'Upload took too long. Please use fewer photos or try again on Wi-Fi.'
+  }
+  if (isUpload) {
+    return 'Could not upload listing. Please wait 30 seconds, check your internet, and try again.'
+  }
   return 'Could not reach server. On free hosting the site may take up to 60 seconds to wake up. Please wait and try again.'
 }
 
 async function apiFetch(path: string, options: ApiFetchOptions = {}) {
   const { timeoutMs, retries = 2, ...init } = options
   const isUpload = init.body instanceof FormData
-  const waitMs = timeoutMs ?? (isUpload ? 120_000 : 60_000)
+  const waitMs = timeoutMs ?? (isUpload ? 180_000 : 60_000)
 
   let lastError: unknown = null
   for (let attempt = 0; attempt <= retries; attempt++) {
@@ -59,7 +65,8 @@ async function apiFetch(path: string, options: ApiFetchOptions = {}) {
   }
 
   if (isNetworkError(lastError)) {
-    throw new Error(networkErrorMessage())
+    const aborted = lastError instanceof DOMException && lastError.name === 'AbortError'
+    throw new Error(networkErrorMessage(isUpload, aborted))
   }
   throw lastError instanceof Error ? lastError : new Error('Request failed')
 }
@@ -175,7 +182,13 @@ export async function addProduct(input: {
   if (Number.isFinite(input.longitude)) form.set('longitude', String(input.longitude))
   for (const file of input.photos) form.append('photos', file)
 
-  const res = await apiFetch('/api/products', { method: 'POST', body: form, retries: 1 })
+  await wakeServer()
+  const res = await apiFetch('/api/products', {
+    method: 'POST',
+    body: form,
+    retries: 3,
+    timeoutMs: 180_000,
+  })
   return parse<Product>(res)
 }
 

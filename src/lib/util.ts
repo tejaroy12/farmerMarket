@@ -41,7 +41,7 @@ function canvasToBlob(canvas: HTMLCanvasElement, type: string, quality: number) 
   })
 }
 
-export async function compressImageForUpload(file: File, maxBytes = 1_900_000) {
+export async function compressImageForUpload(file: File, maxBytes = 900_000) {
   if (file.size <= maxBytes && /^image\/(jpe?g|png|webp)$/i.test(file.type)) {
     return file
   }
@@ -52,7 +52,7 @@ export async function compressImageForUpload(file: File, maxBytes = 1_900_000) {
     const canvas = document.createElement('canvas')
     let width = img.naturalWidth || img.width
     let height = img.naturalHeight || img.height
-    const maxDim = 1600
+    const maxDim = 1280
     if (width > maxDim || height > maxDim) {
       const scale = maxDim / Math.max(width, height)
       width = Math.round(width * scale)
