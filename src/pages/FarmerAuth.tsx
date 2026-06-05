@@ -37,6 +37,7 @@ export default function FarmerAuth() {
       .catch(() => {
         if (cancelled) return
         clearSession()
+        setError('Your previous login expired. Please login or register again.')
       })
 
     return () => {

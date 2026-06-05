@@ -64,12 +64,38 @@ async function apiFetch(path: string, options: ApiFetchOptions = {}) {
   throw lastError instanceof Error ? lastError : new Error('Request failed')
 }
 
-async function parse<T>(res: Response): Promise<T> {
-  const data = await res.json().catch(() => ({}))
-  if (!res.ok) {
-    throw new Error(data.error || 'Request failed')
+function errorMessageForResponse(status: number, data: { error?: string }, raw: string) {
+  if (data.error) return data.error
+  if (status === 401) {
+    return 'Invalid phone or password. If you registered before, try registering again after a server update.'
   }
-  return data as T
+  if (status === 404) return 'Not found. Please logout and login again.'
+  if (status === 409) return 'This phone is already registered. Please login instead.'
+  if (status === 413) return 'Photo is too large. Please choose a smaller image.'
+  if (status === 502 || status === 503) {
+    return 'Server is starting up. Please wait 30 seconds and try again.'
+  }
+  if (status >= 500) return 'Server error. Please try again in a moment.'
+  if (raw.includes('<!DOCTYPE') || raw.includes('<html')) {
+    return 'Server is not ready yet. Please wait and refresh.'
+  }
+  return `Request failed (${status})`
+}
+
+async function parse<T>(res: Response): Promise<T> {
+  const raw = await res.text()
+  let data: { error?: string } = {}
+  if (raw) {
+    try {
+      data = JSON.parse(raw) as { error?: string }
+    } catch {
+      data = {}
+    }
+  }
+  if (!res.ok) {
+    throw new Error(errorMessageForResponse(res.status, data, raw))
+  }
+  return (raw ? JSON.parse(raw) : {}) as T
 }
 
 export async function wakeServer() {

@@ -147,17 +147,17 @@ app.post('/api/farmers/login', (req, res) => {
   res.json({ id: farmer.id, name: farmer.name, phone: farmer.phone })
 })
 
-app.get('/api/farmers/:id', (req, res) => {
-  const farmer = db.prepare('SELECT id, name, phone FROM farmers WHERE id = ?').get(req.params.id)
-  if (!farmer) return res.status(404).json({ error: 'Farmer not found.' })
-  res.json(farmer)
-})
-
 app.get('/api/farmers/:id/products', (req, res) => {
   const rows = db
     .prepare('SELECT * FROM products WHERE farmer_id = ? ORDER BY created_at DESC')
     .all(req.params.id)
   res.json(rows.map(mapProductRow))
+})
+
+app.get('/api/farmers/:id', (req, res) => {
+  const farmer = db.prepare('SELECT id, name, phone FROM farmers WHERE id = ?').get(req.params.id)
+  if (!farmer) return res.status(404).json({ error: 'Farmer not found. Please login again.' })
+  res.json(farmer)
 })
 
 app.post('/api/products', upload.array('photos', 5), (req, res) => {
@@ -394,6 +394,10 @@ app.use((err, req, res, next) => {
     return res.status(500).json({ error: 'Upload failed. Please try again.' })
   }
   next()
+})
+
+app.use('/api', (req, res) => {
+  res.status(404).json({ error: `API route not found: ${req.method} ${req.originalUrl}` })
 })
 
 const distDir = path.join(rootDir, 'dist')
