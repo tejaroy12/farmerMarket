@@ -74,6 +74,7 @@ export default function Marketplace() {
   const [lng, setLng] = useState<number | undefined>(undefined)
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [liveViewers, setLiveViewers] = useState(1)
   const [locationStatus, setLocationStatus] = useState('')
 
@@ -93,6 +94,7 @@ export default function Marketplace() {
 
   async function refreshProducts() {
     setLoading(true)
+    setLoadError(null)
     try {
       const data = await listProducts({
         query: q.trim() || undefined,
@@ -103,6 +105,8 @@ export default function Marketplace() {
         sort,
       })
       setProducts(data)
+    } catch (err) {
+      setLoadError(err instanceof Error ? err.message : 'Failed to load products')
     } finally {
       setLoading(false)
     }
@@ -207,6 +211,11 @@ export default function Marketplace() {
         </button>
       </section>
       {locationStatus ? <p className="muted small">{locationStatus}</p> : null}
+      {loadError ? (
+        <div className="error" role="alert">
+          {loadError}
+        </div>
+      ) : null}
       {maxDistance && (!Number.isFinite(lat) || !Number.isFinite(lng)) ? (
         <p className="muted small">Enable location to use max distance filter.</p>
       ) : null}

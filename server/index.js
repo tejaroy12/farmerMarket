@@ -58,6 +58,10 @@ app.use(cors())
 app.use(express.json({ limit: '2mb' }))
 app.use('/uploads', express.static(uploadDir))
 
+app.get('/api/health', (_req, res) => {
+  res.json({ ok: true })
+})
+
 const storage = multer.diskStorage({
   destination: (_, __, cb) => cb(null, uploadDir),
   filename: (_, file, cb) => {
@@ -407,6 +411,10 @@ if (fs.existsSync(path.join(distDir, 'index.html'))) {
     res.sendFile(path.join(distDir, 'index.html'))
   })
 }
+
+httpServer.timeout = 120_000
+httpServer.keepAliveTimeout = 120_000
+httpServer.headersTimeout = 125_000
 
 httpServer.listen(PORT, '0.0.0.0', () => {
   console.log(`Server listening on http://localhost:${PORT}`)
